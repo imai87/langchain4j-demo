@@ -1,0 +1,85 @@
+spring:
+  application:
+    name: langchain4j-demo
+
+server:
+  port: 8080
+
+# ---------------------------------------------------------------------------
+# Modelo de linguagem
+# O starter "open-ai" fala o protocolo OpenAI, então serve para:
+#   - Ollama com gpt-oss:120b-cloud (padrão desta demo; inferência na nuvem do Ollama)
+#     ou um modelo local, via LLM_MODEL (ex.: qwen2.5:7b)
+#   - OpenAI / gateway corporativo compatível (perfil "openai")
+#   - Claude / Anthropic (perfil "claude") — protocolo próprio, ver bloco abaixo
+# Trocar de provedor = trocar configuração (quase sempre); para Claude também
+# existe um bean-ponte em LangChain4jConfig, pois a Anthropic não fala o
+# protocolo OpenAI e por isso usa um outro bean por baixo.
+# ---------------------------------------------------------------------------
+langchain4j:
+  open-ai:
+    chat-model:
+      base-url: ${LLM_BASE_URL:http://localhost:11434/v1}
+      api-key: ${LLM_API_KEY:ollama}
+      model-name: ${LLM_MODEL:gpt-oss:120b-cloud}
+      temperature: 0.2
+      timeout: 120s
+      max-retries: 2
+      log-requests: ${LLM_LOG:false}
+      log-responses: ${LLM_LOG:false}
+
+demo:
+  rag:
+    max-resultados: 3
+    score-minimo: 0.55
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+
+logging:
+  level:
+    br.com.demo: INFO
+    dev.langchain4j: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: openai
+
+langchain4j:
+  open-ai:
+    chat-model:
+      base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
+      api-key: ${OPENAI_API_KEY}
+      model-name: ${LLM_MODEL:gpt-4.1-mini}
+      # Saída estruturada garantida pelo provedor via JSON Schema
+      supported-capabilities: RESPONSE_FORMAT_JSON_SCHEMA
+      strict-json-schema: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: claude
+  # A Anthropic não fala o protocolo OpenAI, então o bean "openAiChatModel"
+  # do starter open-ai não se aplica aqui: ele é desligado para não criar um
+  # segundo ChatModel na mesma aplicação (ver LangChain4jConfig, que expõe o
+  # AnthropicChatModel sob o nome "openAiChatModel" para os @AiService).
+  autoconfigure:
+    exclude: dev.langchain4j.openai.spring.OpenAiAutoConfiguration
+
+langchain4j:
+  anthropic:
+    chat-model:
+      api-key: ${ANTHROPIC_API_KEY}
+      model-name: ${LLM_MODEL:claude-sonnet-5}
+      temperature: 0.2
+      max-tokens: 1024
+      timeout: 120s
+      max-retries: 2
+      log-requests: ${LLM_LOG:false}
+      log-responses: ${LLM_LOG:false}
